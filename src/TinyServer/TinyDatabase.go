@@ -16,25 +16,27 @@ import (
 
 ///////////////////////////////////////
 
-type TinyDatabse struct {
+type TinyDatabase struct {
 	openString string
 	db         *sql.DB
 }
 
 //////////////////////////////////////
 
-func (mysql *TinyDatabse) open(dataSource string) {
+func (mysql *TinyDatabase) Open(dataSource string) {
 	var err error
 	mysql.db, err = sql.Open("mysql", dataSource)
 	if err != nil {
 		fmt.Println("open sql error")
-		panic(err)
+		fmt.Println(err)
+	} else {
+		fmt.Println("Open Databse Succsess")
 	}
 }
 
 ///////////////////////////////////////
 
-func (mysql TinyDatabse) getUserInfo(name string) (UserUid int, UserName string, UserHash string, UserPwd string, UserFlag int, Expiry string) {
+func (mysql TinyDatabase) getUserInfo(name string) (UserUid int, UserName string, UserHash string, UserPwd string, UserFlag int, Expiry string) {
 	// 检查登陆名、密码、机器id
 	var (
 		uid  int
@@ -63,8 +65,8 @@ func (mysql TinyDatabse) getUserInfo(name string) (UserUid int, UserName string,
 
 ///////////////////////////////////////
 
-func (mysql TinyDatabse) CheckLogin(name string, passwd string) bool {
-	mysql.open("root:lewislau@/test")
+func (mysql TinyDatabase) CheckLogin(name string, passwd string) bool {
+	//mysql.Open("root:lewislau@/test")
 	uid, user, pwd, hash, flag, date := mysql.getUserInfo(name)
 
 	if uid != 0 && user != "" && pwd != "" {

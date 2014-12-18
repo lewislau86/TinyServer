@@ -10,10 +10,12 @@ import (
 	"fmt"
 )
 
-func RespLogin() {
+func RespLogin() error {
 	fmt.Println("RespLogin")
+	return nil
 }
 
-func RespLogout() {
+func RespLogout() error {
 	fmt.Println("RespLogout")
+	return nil
 }

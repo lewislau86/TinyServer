@@ -2,6 +2,10 @@
 // TinyServer
 // Golang Server Framework
 //  Lewis	( lewislau86@gmail.com )
+// 数据包格式
+// 目前只提供两种包
+//		1. 登陆验证
+//		2. 心跳
 ///////////////////////////////////////
 package TinyServer
 
@@ -14,9 +18,9 @@ const (
 )
 
 const (
-	CMD_LOGIN  = 0xeef0
-	CMD_LOGOUT = 0xeef1
-	CMG_EWWW   = 0xeef2
+	CMD_LOGIN     = 0xeef0
+	CMD_LOGOUT    = 0xeef1
+	CMG_HEARTBEAT = 0xeef2
 )
 
 type ProtocolHeader struct {

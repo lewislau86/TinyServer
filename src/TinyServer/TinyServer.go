@@ -9,12 +9,10 @@ import (
 	"fmt"
 	//"io/ioutil"
 	//"bufio"
-	"bytes"
-	"encoding/binary"
-	"log"
+
 	"net"
+	"sync"
 	"sync/atomic"
-	"time"
 )
 
 type TcpServer struct {
@@ -23,28 +21,36 @@ type TcpServer struct {
 	addr       *net.TCPAddr
 	createFlag bool
 	// About sessions
-	maxSessionId uint64
-	sessionStack map[uint64]*Session
-	sessionMutex sync.Mutex
-	//	session  map[uint64]*Session
+	maxSessionId  uint64
+	onlineSession uint32
+	sessionStack  map[uint64]*Session
+	sessionMutex  sync.Mutex
+	mysql         TinyDatabase
 }
 
 //+++++++++++++++++++++++++++++++++++++++++++++++
 // public
 ///////////////////////////////////////
 //
-func (tcp *TcpServer) CreateTcpServer(name, addr string) {
+func (tcp *TcpServer) CreateTcpServer(name, addr string, dataSource string) {
 	var err error
+
 	tcp.name = name
+	tcp.onlineSession = 0
+	tcp.maxSessionId = 0
+	tcp.sessionStack = make(map[uint64]*Session)
+	tcp.mysql = TinyDatabase{}
 	tcp.addr, err = net.ResolveTCPAddr("tcp4", addr)
 	if err != nil {
 		fmt.Println(err)
 	}
+
 	tcp.listener, err = net.ListenTCP("tcp", tcp.addr)
 	if err != nil {
 		fmt.Println("ListenTCP error")
 		fmt.Println(err)
 	} else {
+		tcp.mysql.Open(dataSource)
 		tcp.createFlag = true
 		fmt.Println("Create a server successfully.")
 	}
@@ -61,7 +67,7 @@ func (tcp *TcpServer) Start() {
 		// 要在这里做 Session管理
 		session, err := tcp.accept()
 		if err == nil {
-			go tcp.recvServerRoutine(session)
+			go session.recvServerRoutine(tcp)
 			fmt.Println("Server Success")
 		} else {
 			fmt.Println("Server Failed")
@@ -82,60 +88,6 @@ func (tcp *TcpServer) Stop() {
 
 //-----------------------------------------------
 // private
-///////////////////////////////////////
-func (tcp TcpServer) parseProtocal(proto ProtocolHeader) {
-	if proto.ProtocolFlag == 0x55ff {
-		switch proto.ControlCode {
-		case CMD_LOGIN:
-			RespLogin()
-		case CMD_LOGOUT:
-			RespLogout()
-		default:
-			break
-		}
-	}
-}
-
-///////////////////////////////////////
-// addr  ”127.0.0.1：9090“
-// 有异常就关闭连接
-// 分别创建接收/发送的线程通过chan来同步
-func (tcp *TcpServer) recvServerRoutine(session *Session) {
-	var buffer = new(bytes.Buffer)
-
-	//	tcp.conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-	defer session.conn.Close()
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("error")
-		}
-	}()
-	fmt.Println("wait to read")
-	msg := make([]byte, MAX_PACKET_SIZE)
-	ph := ProtocolHeader{}
-	for {
-		len, err := session.conn.Read(msg)
-		if err != nil {
-			fmt.Println("read out")
-			fmt.Println(err)
-			break
-		}
-		if len > 0 {
-			// format buffer
-			err := binary.Write(buffer, binary.BigEndian, msg)
-			CheckErr(err)
-			err = binary.Read(buffer, binary.BigEndian, &ph)
-			CheckErr(err)
-
-			tcp.parseProtocal(ph)
-			//	fmt.Println(string(ph.Name[0:16]))
-			buffer.Reset()
-		} else {
-			fmt.Println(len)
-		}
-		time.Sleep(time.Millisecond * 100)
-	}
-}
 
 ///////////////////////////////////////
 
@@ -144,35 +96,45 @@ func (tcp *TcpServer) accept() (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	session, err := tcp.createSession(conn)
-	fmt.Print("*****conn****\t")
+	fmt.Println("New connection :\t", conn.RemoteAddr().String())
+	session := tcp.createSession(conn)
 	return session, nil
 }
 
 ///////////////////////////////////////
 
-func (tcp *TcpServer) createSession(conn net.Conn) (*Session, error) {
-	session := NewSession(conn)
-	err := tcp.pushSession(session)
-	return session, err
+func (tcp *TcpServer) createSession(conn net.Conn) *Session {
+	session := NewSession(atomic.AddUint64(&tcp.maxSessionId, 1), conn)
+	if session != nil {
+		tcp.pushSession(session)
+		fmt.Println("Create session here. Online :", tcp.onlineSession)
+	}
+	return session
+}
+
+///////////////////////////////////////
+func (tcp *TcpServer) closeSession(session *Session) error {
+	tcp.popSession(session)
+	fmt.Println("Close session here. Online :", tcp.onlineSession)
+	return nil
 }
 
 ///////////////////////////////////////
 
-func (tcp *TcpServer) pushSession(session Session) error {
+func (tcp *TcpServer) pushSession(session *Session) {
 	tcp.sessionMutex.Lock()
 	defer tcp.sessionMutex.Unlock()
 	tcp.sessionStack[session.id] = session
-	return err
+	tcp.onlineSession = tcp.onlineSession + 1
 }
 
 ///////////////////////////////////////
 
-func (tcp *TcpServer) popSession(session Session) error {
+func (tcp *TcpServer) popSession(session *Session) {
 	tcp.sessionMutex.Lock()
 	defer tcp.sessionMutex.Unlock()
-	tcp.sessionStack[session.id] = session
-	return err
+	delete(tcp.sessionStack, session.id)
+	tcp.onlineSession = tcp.onlineSession - 1
 }
 
 //EOF
