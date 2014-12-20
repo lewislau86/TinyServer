@@ -47,7 +47,7 @@ func (mysql TinyDatabase) getUserInfo(name string) (UserUid int, UserName string
 		data string
 	)
 
-	sql := fmt.Sprintf("select * from userinfo where user='%s'", name)
+	sql := fmt.Sprintf("select * from userinfo where user='%s' ", name)
 	fmt.Println(sql)
 	rows, err := mysql.db.Query(sql)
 	if err != nil {
@@ -60,7 +60,7 @@ func (mysql TinyDatabase) getUserInfo(name string) (UserUid int, UserName string
 		}
 		return uid, user, hash, pwd, flag, data
 	}
-	return 0, "", "", "", 0, ""
+	return uid, user, hash, pwd, flag, data
 }
 
 ///////////////////////////////////////

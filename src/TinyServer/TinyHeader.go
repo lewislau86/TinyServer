@@ -14,20 +14,31 @@ import (
 )
 
 const (
-	MAX_PACKET_SIZE = 512
+	MAX_PACKET_SIZE = 1024
 )
 
 const (
 	CMD_LOGIN     = 0xeef0
 	CMD_LOGOUT    = 0xeef1
 	CMG_HEARTBEAT = 0xeef2
+	CMG_REPLY     = 0xeef3
 )
 
-type ProtocolHeader struct {
-	ProtocolSize uint8
-	ProtocolFlag uint16
-	ControlCode  uint16
-	Name         [64]rune
+type ProtoHeader struct {
+	ProtoSize uint8
+	ProtoFlag uint16
+	CtrlCode  uint16
+}
+
+type ProtoLogin struct {
+	Header ProtoHeader
+	Name   [64]rune
+	Passwd [64]byte
+}
+
+type ReplyMsg struct {
+	Header ProtoHeader
+	Result uint8
 }
 
 ///////////////////////////////////////
@@ -35,5 +46,28 @@ type ProtocolHeader struct {
 func CheckErr(err error) {
 	if err != nil {
 		fmt.Println(err)
+	}
+}
+
+///////////////////////////////////////
+func GetRuneStrLen(str []rune) uint32 {
+	var i uint32 = 0
+	for {
+		if str[i] == 0 {
+			return i
+		}
+		i++
+	}
+}
+
+///////////////////////////////////////
+
+func GetByteStrLen(str []byte) uint32 {
+	var i uint32 = 0
+	for {
+		if str[i] == 0 {
+			return i
+		}
+		i++
 	}
 }

@@ -32,7 +32,6 @@ func NewSession(id uint64, conn net.Conn) *Session {
 }
 
 ///////////////////////////////////////
-///////////////////////////////////////
 // addr  ”127.0.0.1：9090“
 // 有异常就关闭连接
 // 分别创建接收/发送的线程通过chan来同步
@@ -48,7 +47,7 @@ func (session *Session) recvServerRoutine(tcp *TcpServer) {
 	}()
 	fmt.Println("wait to read")
 	msg := make([]byte, MAX_PACKET_SIZE)
-	ph := ProtocolHeader{}
+	proto := ProtoHeader{}
 	for {
 		len, err := session.conn.Read(msg)
 		if err != nil {
@@ -58,41 +57,37 @@ func (session *Session) recvServerRoutine(tcp *TcpServer) {
 			// format buffer
 			err := binary.Write(buffer, binary.BigEndian, msg)
 			CheckErr(err)
-			err = binary.Read(buffer, binary.BigEndian, &ph)
+			err = binary.Read(buffer, binary.BigEndian, &proto)
 			CheckErr(err)
-			status := session.parseProtocal(ph)
-			if false == status {
-				fmt.Println("1")
-				break
+
+			// 解析协议
+			if proto.ProtoFlag == 0x55ff {
+				switch proto.CtrlCode {
+				case CMD_LOGIN:
+					err := RespLogin(session, tcp, msg)
+					if err != nil {
+						break
+					}
+				case CMD_LOGOUT:
+					err := RespLogout(session, tcp, msg)
+					if err != nil {
+						break
+					}
+				case CMG_HEARTBEAT:
+					err := RespHeartbeat(session, tcp, msg)
+					if err != nil {
+						break
+					}
+				default:
+					break
+				}
+				buffer.Reset()
 			}
-			//	fmt.Println(string(ph.Name[0:16]))
-			buffer.Reset()
 		} else {
-			fmt.Println(len)
+			fmt.Println("Read len error", len)
 		}
 		time.Sleep(time.Millisecond * 100)
 	}
-}
-
-///////////////////////////////////////
-func (session *Session) parseProtocal(proto ProtocolHeader) bool {
-	if proto.ProtocolFlag == 0x55ff {
-		switch proto.ControlCode {
-		case CMD_LOGIN:
-			err := RespLogin()
-			if err != nil {
-				return false
-			}
-		case CMD_LOGOUT:
-			err := RespLogout()
-			if err != nil {
-				return false
-			}
-		default:
-			break
-		}
-	}
-	return true
 }
 
 // EOF
